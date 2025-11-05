@@ -202,16 +202,18 @@ def main_menu():
     print_color("6. 📚 View Symbol Dictionary", Colors.WHITE)
     print_color("7. 🎨 Add Custom Symbol", Colors.WHITE)
     print_color("8. 🗑️  Delete Dream Entry", Colors.WHITE)
-    print_color("9. 🚪 Logout", Colors.WHITE)
+    print_color("9. 🔍 Filter Dreams by Date", Colors.WHITE)  # New menu item
+    print_color("10. 📋 View Dream Prompt Answers", Colors.WHITE)  # New menu item
+    print_color("11. 🚪 Logout", Colors.WHITE)
     print_color("-" * 60, Colors.CYAN)
 
     while True:
         try:
-            choice = input(f"{Colors.YELLOW}🎯 Enter your choice (1-9): {Colors.END}").strip()
-            if choice in ['1', '2', '3', '4', '5', '6', '7', '8', '9']:
+            choice = input(f"{Colors.YELLOW}🎯 Enter your choice (1-11): {Colors.END}").strip()
+            if choice in ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11']:
                 return choice
             else:
-                display_error("Invalid choice! Please enter a number between 1-9.")
+                display_error("Invalid choice! Please enter a number between 1-11.")
         except Exception as e:
             display_error(f"Error: {e}. Please try again.")
 
@@ -834,6 +836,177 @@ def search_dreams():
     input(f"\n{Colors.CYAN}Press Enter to continue...{Colors.END}")
 
 
+def filter_dreams_by_date():
+    """Filter dreams by date range"""
+    clear_screen()
+    print_color("╔══════════════════════════════════════════════════════════╗", Colors.CYAN)
+    print_color("║                  🔍 FILTER DREAMS BY DATE                ║", Colors.BOLD + Colors.PURPLE)
+    print_color("╚══════════════════════════════════════════════════════════╝", Colors.CYAN)
+    print()
+
+    user_dreams = get_user_dreams()
+
+    if not user_dreams:
+        display_warning("No dreams found to filter.")
+        input(f"\n{Colors.CYAN}Press Enter to continue...{Colors.END}")
+        return
+
+    print_color("Enter date range to filter dreams:\n", Colors.CYAN)
+
+    # Get start date
+    while True:
+        start_date = input(f"{Colors.YELLOW}📅 Enter start date (YYYY-MM-DD): {Colors.END}").strip()
+        if validate_date(start_date):
+            break
+        else:
+            display_error("Invalid date format! Please use YYYY-MM-DD (e.g., 2025-11-01)")
+
+    # Get end date
+    while True:
+        end_date = input(f"{Colors.YELLOW}📅 Enter end date (YYYY-MM-DD): {Colors.END}").strip()
+        if validate_date(end_date):
+            break
+        else:
+            display_error("Invalid date format! Please use YYYY-MM-DD (e.g., 2025-11-01)")
+
+    # Filter dreams by date range
+    filtered_dreams = []
+    for dream in user_dreams:
+        if start_date <= dream['date'] <= end_date:
+            filtered_dreams.append(dream)
+
+    if not filtered_dreams:
+        display_warning(f"No dreams found between {start_date} and {end_date}")
+    else:
+        print_color(f"\n📊 Dreams found between {start_date} and {end_date}: {len(filtered_dreams)}\n", Colors.GREEN)
+        for i, dream in enumerate(filtered_dreams, 1):
+            print_color(f"┌{'─' * 58}┐", Colors.CYAN)
+            print_color(f"│ 🦋 Dream #{i: <51} │", Colors.PURPLE)
+            print_color(f"├{'─' * 58}┤", Colors.CYAN)
+            print_color(f"│ 📅 Date: {dream['date']: <47} │", Colors.WHITE)
+            print_color(f"│ 🏷️  Title: {dream['title']: <46} │", Colors.WHITE)
+            print_color(f"│ 📖 Description: {dream['description'][:40]: <37} │", Colors.WHITE)
+            print_color(f"│ 😊 Mood: {dream['mood']: <47} │", Colors.WHITE)
+            print_color(f"│ 🌙 Type: {dream['dream_type']: <46} │", Colors.WHITE)
+            print_color(f"│ 💥 Intensity: {dream['intensity']}/10{' ': <37} │", Colors.WHITE)
+            print_color(f"│ 🔮 Symbols: {dream['symbols'][:40]: <38} │", Colors.WHITE)
+            print_color(f"└{'─' * 58}┘", Colors.CYAN)
+            print()
+
+    input(f"\n{Colors.CYAN}Press Enter to continue...{Colors.END}")
+
+
+def get_dream_prompts():
+    """Generate random dream prompts and save answers"""
+    clear_screen()
+    print_color("╔══════════════════════════════════════════════════════════╗", Colors.CYAN)
+    print_color("║                   💭 DREAM RECALL PROMPTS                ║", Colors.BOLD + Colors.PURPLE)
+    print_color("╚══════════════════════════════════════════════════════════╝", Colors.CYAN)
+    print()
+    print_color("Answer these questions to help remember your dream:\n", Colors.CYAN)
+
+    try:
+        selected_prompts = random.sample(DREAM_PROMPTS, 5)
+        answers = []
+
+        print_color("🌟 Please answer the following questions about your dream:\n", Colors.GREEN)
+
+        for i, prompt in enumerate(selected_prompts, 1):
+            print_color(f"{i}. {prompt}", Colors.CYAN + Colors.BOLD)
+            answer = input(f"{Colors.YELLOW}   Your answer: {Colors.END}").strip()
+            if answer:
+                answers.append(f"Q: {prompt}\nA: {answer}\n")
+            print()
+
+        if answers:
+            # Save answers to file
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            filename = f"dream_prompts_{current_user['username']}_{timestamp}.txt"
+
+            try:
+                with open(filename, "w", encoding="utf-8") as file:
+                    file.write(f"Dream Recall Session - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    file.write(f"User: {current_user['username']}\n")
+                    file.write("=" * 50 + "\n\n")
+                    for answer in answers:
+                        file.write(answer + "\n")
+
+                display_success(f"Your dream recall answers have been saved to: {filename}")
+                display_info("You can view your answers in 'View Dream Prompt Answers' menu.")
+            except IOError:
+                display_error("Could not save your answers to file.")
+        else:
+            display_warning("No answers provided. Nothing to save.")
+
+    except Exception as e:
+        display_error(f"Error generating prompts: {e}")
+    finally:
+        input(f"\n{Colors.CYAN}Press Enter to continue...{Colors.END}")
+
+
+def view_dream_prompt_answers():
+    """View saved dream prompt answers"""
+    clear_screen()
+    print_color("╔══════════════════════════════════════════════════════════╗", Colors.CYAN)
+    print_color("║                 📋 DREAM PROMPT ANSWERS                  ║", Colors.BOLD + Colors.PURPLE)
+    print_color("╚══════════════════════════════════════════════════════════╝", Colors.CYAN)
+    print()
+
+    try:
+        # Find all prompt answer files for current user
+        import glob
+        pattern = f"dream_prompts_{current_user['username']}_*.txt"
+        prompt_files = glob.glob(pattern)
+
+        if not prompt_files:
+            display_warning("No dream prompt answers found.")
+            display_info("Use 'Get Dream Prompts' to create your first dream recall session.")
+            input(f"\n{Colors.CYAN}Press Enter to continue...{Colors.END}")
+            return
+
+        # Sort files by creation time (newest first)
+        prompt_files.sort(key=os.path.getctime, reverse=True)
+
+        print_color("📁 Your Dream Recall Sessions:\n", Colors.GREEN)
+        for i, filename in enumerate(prompt_files, 1):
+            file_time = os.path.getctime(filename)
+            formatted_time = datetime.fromtimestamp(file_time).strftime("%Y-%m-%d %H:%M:%S")
+            print_color(f"{i}. {filename} ({formatted_time})", Colors.WHITE)
+
+        print()
+        choice = input(f"{Colors.YELLOW}🎯 Enter session number to view (or 0 to go back): {Colors.END}").strip()
+
+        if choice == '0':
+            return
+
+        try:
+            choice_num = int(choice)
+            if 1 <= choice_num <= len(prompt_files):
+                selected_file = prompt_files[choice_num - 1]
+
+                clear_screen()
+                print_color("╔══════════════════════════════════════════════════════════╗", Colors.CYAN)
+                print_color("║                 📋 DREAM PROMPT ANSWERS                  ║", Colors.BOLD + Colors.PURPLE)
+                print_color("╚══════════════════════════════════════════════════════════╝", Colors.CYAN)
+                print()
+
+                try:
+                    with open(selected_file, "r", encoding="utf-8") as file:
+                        content = file.read()
+                        print_color(content, Colors.WHITE)
+                except IOError:
+                    display_error("Could not read the selected file.")
+            else:
+                display_error("Invalid selection!")
+        except ValueError:
+            display_error("Please enter a valid number!")
+
+    except Exception as e:
+        display_error(f"Error viewing prompt answers: {e}")
+    finally:
+        input(f"\n{Colors.CYAN}Press Enter to continue...{Colors.END}")
+
+
 def analyze_patterns():
     """Analyze dream patterns and show statistics for current user"""
     clear_screen()
@@ -896,29 +1069,6 @@ def analyze_patterns():
     input(f"\n{Colors.CYAN}Press Enter to continue...{Colors.END}")
 
 
-def get_dream_prompts():
-    """Generate random dream prompts to help recall"""
-    clear_screen()
-    print_color("╔══════════════════════════════════════════════════════════╗", Colors.CYAN)
-    print_color("║                   💭 DREAM RECALL PROMPTS                ║", Colors.BOLD + Colors.PURPLE)
-    print_color("╚══════════════════════════════════════════════════════════╝", Colors.CYAN)
-    print()
-    print_color("Answer these questions to help remember your dream:\n", Colors.CYAN)
-
-    try:
-        selected_prompts = random.sample(DREAM_PROMPTS, 5)
-
-        for i, prompt in enumerate(selected_prompts, 1):
-            print_color(f"{i}. {prompt}", Colors.WHITE)
-
-        print_color("\n🌟 Use these prompts to recall more details about your dream!", Colors.GREEN)
-
-    except Exception as e:
-        display_error(f"Error generating prompts: {e}")
-    finally:
-        input(f"\n{Colors.CYAN}Press Enter to continue...{Colors.END}")
-
-
 def view_symbol_dictionary():
     """View dream symbol meanings"""
     clear_screen()
@@ -933,15 +1083,23 @@ def view_symbol_dictionary():
             print_color(f"🔮 {symbol.capitalize()}:", Colors.CYAN + Colors.BOLD)
             print_color(f"   {meaning}\n", Colors.WHITE)
 
+        # Load and display custom symbols
+        custom_symbols = {}
         try:
             with open("custom_symbols.txt", "r") as file:
-                custom = file.readlines()
-                if custom:
-                    print_color("🎨 YOUR CUSTOM SYMBOLS\n", Colors.GREEN + Colors.BOLD)
-                    for line in custom:
-                        print_color(f"   {line.strip()}", Colors.WHITE)
+                for line in file:
+                    line = line.strip()
+                    if ':' in line:
+                        symbol, meaning = line.split(':', 1)
+                        custom_symbols[symbol.strip().lower()] = meaning.strip()
         except FileNotFoundError:
             pass
+
+        if custom_symbols:
+            print_color("🎨 YOUR CUSTOM SYMBOLS\n", Colors.GREEN + Colors.BOLD)
+            for symbol, meaning in sorted(custom_symbols.items()):
+                print_color(f"🔮 {symbol.capitalize()}:", Colors.PURPLE + Colors.BOLD)
+                print_color(f"   {meaning}\n", Colors.WHITE)
 
     except Exception as e:
         display_error(f"Error displaying symbols: {e}")
@@ -950,7 +1108,7 @@ def view_symbol_dictionary():
 
 
 def add_custom_symbol():
-    """Add a custom dream symbol and meaning"""
+    """Add a custom dream symbol and meaning with validation"""
     clear_screen()
     print_color("╔══════════════════════════════════════════════════════════╗", Colors.CYAN)
     print_color("║                    🎨 ADD CUSTOM SYMBOL                  ║", Colors.BOLD + Colors.PURPLE)
@@ -958,9 +1116,36 @@ def add_custom_symbol():
     print()
 
     try:
-        symbol = input(f"{Colors.YELLOW}🔮 Enter symbol name: {Colors.END}").strip().lower()
-        if not symbol:
-            raise ValueError("Symbol name cannot be empty!")
+        # Load existing custom symbols first
+        existing_symbols = set()
+        try:
+            with open("custom_symbols.txt", "r") as file:
+                for line in file:
+                    line = line.strip()
+                    if ':' in line:
+                        symbol = line.split(':')[0].strip().lower()
+                        existing_symbols.add(symbol)
+        except FileNotFoundError:
+            pass
+
+        # Also check built-in symbols
+        for builtin_symbol in DREAM_SYMBOLS.keys():
+            existing_symbols.add(builtin_symbol.lower())
+
+        while True:
+            symbol = input(f"{Colors.YELLOW}🔮 Enter symbol name: {Colors.END}").strip().lower()
+            if not symbol:
+                display_error("Symbol name cannot be empty!")
+                continue
+
+            # Check if symbol already exists
+            if symbol in existing_symbols:
+                display_warning(f"Symbol '{symbol.capitalize()}' already exists in the dictionary!")
+                continue_choice = input(f"{Colors.YELLOW}Do you want to add it anyway? (y/n): {Colors.END}").strip().lower()
+                if continue_choice != 'y':
+                    continue
+
+            break
 
         meaning = input(f"{Colors.YELLOW}💡 Enter your personal meaning: {Colors.END}").strip()
         if not meaning:
@@ -1095,6 +1280,10 @@ def main():
                 elif choice == '8':
                     delete_dream()
                 elif choice == '9':
+                    filter_dreams_by_date()
+                elif choice == '10':
+                    view_dream_prompt_answers()
+                elif choice == '11':
                     display_success("Thank you for using Dream Journal & Analysis System!")
                     print_color("Sweet dreams! 🌙", Colors.PURPLE + Colors.BOLD)
                     current_user = None
