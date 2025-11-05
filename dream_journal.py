@@ -1,5 +1,10 @@
 import random
 from datetime import datetime
+import hashlib
+import getpass  # Add this import at the top
+
+# Global variable to track current logged-in user
+current_user = None
 
 # Dream prompts for helping users recall dreams
 DREAM_PROMPTS = [
@@ -50,15 +55,18 @@ def display_header():
 def main_menu():
     """Display main menu and return user choice"""
     display_header()
+    if current_user:
+        print(f"Logged in as: {current_user['full_name']} (@{current_user['username']})")
+        print("-" * 60)
     print("1. Add New Dream Entry")
-    print("2. View All Dreams")
-    print("3. Search Dreams")
-    print("4. Analyze Dream Patterns")
+    print("2. View My Dreams")
+    print("3. Search My Dreams")
+    print("4. Analyze My Dream Patterns")
     print("5. Get Dream Prompts")
     print("6. View Symbol Dictionary")
     print("7. Add Custom Symbol")
     print("8. Delete Dream Entry")
-    print("9. Exit")
+    print("9. Logout")
     print("-" * 60)
 
     while True:
@@ -70,6 +78,228 @@ def main_menu():
                 print("Invalid choice! Please enter a number between 1-9.")
         except Exception as e:
             print(f"Error: {e}. Please try again.")
+
+
+def validate_username(username):
+    """Validate username format"""
+    if not username or not username.strip():
+        raise ValueError("Username cannot be empty!")
+
+    if len(username) < 3:
+        raise ValueError("Username must be at least 3 characters long!")
+
+    if len(username) > 20:
+        raise ValueError("Username must be at most 20 characters long!")
+
+    # Allow only letters, numbers, and underscore
+    for char in username:
+        if not (char.isalnum() or char == '_'):
+            raise ValueError(f"Username can only contain letters, numbers, and underscore! Found: '{char}'")
+
+    return True
+
+
+def validate_password(password):
+    """Validate password strength"""
+    if not password or not password.strip():
+        raise ValueError("Password cannot be empty!")
+
+    if len(password) < 6:
+        raise ValueError("Password must be at least 6 characters long!")
+
+    if len(password) > 30:
+        raise ValueError("Password must be at most 30 characters long!")
+
+    return True
+
+
+def hash_password(password):
+    """Hash password for secure storage"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+
+def register_user():
+    """Register a new user"""
+    clear_screen()
+    print("=" * 60)
+    print("                    REGISTER NEW ACCOUNT")
+    print("=" * 60)
+    print()
+
+    try:
+        # Get and validate username
+        while True:
+            try:
+                username = input("Enter username (3-20 characters, letters/numbers/_): ").strip()
+                validate_username(username)
+
+                # Check if username already exists
+                try:
+                    with open("users.txt", "r") as file:
+                        users = file.readlines()
+                        for user in users:
+                            stored_username = user.strip().split("|")[0]
+                            if stored_username.lower() == username.lower():
+                                print("Username already exists! Please choose another.")
+                                continue
+                except FileNotFoundError:
+                    pass  # File doesn't exist yet, which is fine
+
+                break
+            except ValueError as e:
+                print(f"Error: {e}")
+
+        # Get and validate password (using getpass to hide input)
+        while True:
+            try:
+                password = getpass.getpass("Enter password (minimum 6 characters): ").strip()
+                validate_password(password)
+                break
+            except ValueError as e:
+                print(f"Error: {e}")
+
+        # Confirm password (using getpass to hide input)
+        while True:
+            confirm_password = getpass.getpass("Confirm password: ").strip()
+            if confirm_password == password:
+                break
+            else:
+                print("Passwords do not match! Please try again.")
+
+        # Get full name
+        while True:
+            try:
+                full_name = input("Enter your full name: ").strip()
+                validate_letters_only(full_name, "Full name")
+                break
+            except ValueError as e:
+                print(f"Error: {e}")
+
+        # Hash password and save user
+        hashed_password = hash_password(password)
+        user_entry = f"{username}|{hashed_password}|{full_name}\n"
+
+        try:
+            with open("users.txt", "a") as file:
+                file.write(user_entry)
+            print("\n✓ Registration successful! You can now login.")
+            input("\nPress Enter to continue...")
+            return True
+        except IOError:
+            print("\n✗ Error: Could not save user data.")
+            input("\nPress Enter to continue...")
+            return False
+
+    except Exception as e:
+        print(f"\n✗ Unexpected error: {e}")
+        input("\nPress Enter to continue...")
+        return False
+
+
+def login_user():
+    """Login existing user"""
+    global current_user
+    clear_screen()
+    print("=" * 60)
+    print("                        LOGIN")
+    print("=" * 60)
+    print()
+
+    try:
+        # Check if users file exists
+        try:
+            with open("users.txt", "r") as file:
+                users = file.readlines()
+        except FileNotFoundError:
+            print("No users registered yet. Please register first.")
+            input("\nPress Enter to continue...")
+            return False
+
+        if not users:
+            print("No users registered yet. Please register first.")
+            input("\nPress Enter to continue...")
+            return False
+
+        # Get username
+        username = input("Enter username: ").strip()
+        if not username:
+            print("Username cannot be empty!")
+            input("\nPress Enter to continue...")
+            return False
+
+        # Get password (using getpass to hide input)
+        password = getpass.getpass("Enter password: ").strip()
+        if not password:
+            print("Password cannot be empty!")
+            input("\nPress Enter to continue...")
+            return False
+
+        # Hash entered password
+        hashed_password = hash_password(password)
+
+        # Check credentials
+        for user in users:
+            try:
+                parts = user.strip().split("|")
+                if len(parts) >= 3:
+                    stored_username, stored_password, full_name = parts
+
+                    if stored_username.lower() == username.lower():
+                        if stored_password == hashed_password:
+                            current_user = {
+                                'username': stored_username,
+                                'full_name': full_name
+                            }
+                            print(f"\n✓ Login successful! Welcome back, {full_name}!")
+                            input("\nPress Enter to continue...")
+                            return True
+                        else:
+                            print("\n✗ Incorrect password!")
+                            input("\nPress Enter to continue...")
+                            return False
+            except Exception:
+                continue
+
+        print("\n✗ Username not found!")
+        input("\nPress Enter to continue...")
+        return False
+
+    except Exception as e:
+        print(f"\n✗ Unexpected error: {e}")
+        input("\nPress Enter to continue...")
+        return False
+
+
+def auth_menu():
+    """Display authentication menu"""
+    while True:
+        clear_screen()
+        print("=" * 60)
+        print("       DREAM JOURNAL & ANALYSIS SYSTEM")
+        print("=" * 60)
+        print()
+        print("1. Login")
+        print("2. Register")
+        print("3. Exit")
+        print("-" * 60)
+
+        try:
+            choice = input("Enter your choice (1-3): ").strip()
+
+            if choice == '1':
+                if login_user():
+                    return True  # Successful login
+            elif choice == '2':
+                register_user()
+            elif choice == '3':
+                print("\nGoodbye!")
+                return False  # Exit program
+            else:
+                print("Invalid choice! Please enter 1, 2, or 3.")
+                input("\nPress Enter to continue...")
+        except Exception as e:
+            print(f"Error: {e}")
+            input("\nPress Enter to continue...")
 
 
 def validate_date(date_str):
@@ -212,8 +442,8 @@ def add_dream_entry():
         # Get symbols/tags
         symbols = input("Symbols or tags (comma-separated): ").strip()
 
-        # Create dream entry
-        dream_entry = f"{date}|{title}|{description}|{mood}|{dream_type}|{intensity}|{symbols}\n"
+        # Create dream entry with username
+        dream_entry = f"{current_user['username']}|{date}|{title}|{description}|{mood}|{dream_type}|{intensity}|{symbols}\n"
 
         # Save to file
         try:
@@ -231,48 +461,69 @@ def add_dream_entry():
         input("\nPress Enter to continue...")
 
 
-def view_all_dreams():
-    """View all dream entries"""
-    clear_screen()
-    print("=== ALL DREAM ENTRIES ===\n")
-
+def get_user_dreams():
+    """Get all dreams for the current user"""
     try:
         with open("dreams.txt", "r") as file:
             dreams = file.readlines()
 
-        if not dreams:
-            print("No dreams found. Start by adding your first dream!")
-        else:
-            for i, dream in enumerate(dreams, 1):
-                try:
-                    parts = dream.strip().split("|")
-                    if len(parts) >= 7:
-                        date, title, description, mood, dream_type, intensity, symbols = parts
-                        print(f"\n--- Dream #{i} ---")
-                        print(f"Date: {date}")
-                        print(f"Title: {title}")
-                        print(f"Description: {description}")
-                        print(f"Mood: {mood}")
-                        print(f"Type: {dream_type}")
-                        print(f"Intensity: {intensity}/10")
-                        print(f"Symbols: {symbols}")
-                        print("-" * 50)
-                except Exception:
-                    print(f"Dream #{i}: [Corrupted entry]")
-                    continue
+        user_dreams = []
+        for dream in dreams:
+            try:
+                parts = dream.strip().split("|")
+                if len(parts) >= 8:  # Now we have 8 fields including username
+                    username, date, title, description, mood, dream_type, intensity, symbols = parts
+                    if username == current_user['username']:
+                        user_dreams.append({
+                            'username': username,
+                            'date': date,
+                            'title': title,
+                            'description': description,
+                            'mood': mood,
+                            'dream_type': dream_type,
+                            'intensity': intensity,
+                            'symbols': symbols
+                        })
+            except Exception:
+                continue
 
+        return user_dreams
     except FileNotFoundError:
-        print("No dream entries found. The dreams file doesn't exist yet.")
+        return []
     except Exception as e:
         print(f"Error reading dreams: {e}")
-    finally:
-        input("\nPress Enter to continue...")
+        return []
+
+
+def view_all_dreams():
+    """View all dream entries for the current user"""
+    clear_screen()
+    print("=== MY DREAM ENTRIES ===\n")
+
+    user_dreams = get_user_dreams()
+
+    if not user_dreams:
+        print("No dreams found. Start by adding your first dream!")
+    else:
+        print(f"Total dreams: {len(user_dreams)}\n")
+        for i, dream in enumerate(user_dreams, 1):
+            print(f"--- Dream #{i} ---")
+            print(f"Date: {dream['date']}")
+            print(f"Title: {dream['title']}")
+            print(f"Description: {dream['description']}")
+            print(f"Mood: {dream['mood']}")
+            print(f"Type: {dream['dream_type']}")
+            print(f"Intensity: {dream['intensity']}/10")
+            print(f"Symbols: {dream['symbols']}")
+            print("-" * 50)
+
+    input("\nPress Enter to continue...")
 
 
 def search_dreams():
-    """Search dreams by keyword"""
+    """Search dreams by keyword for current user"""
     clear_screen()
-    print("=== SEARCH DREAMS ===\n")
+    print("=== SEARCH MY DREAMS ===\n")
 
     keyword = input("Enter keyword to search: ").strip().lower()
 
@@ -281,121 +532,97 @@ def search_dreams():
         input("\nPress Enter to continue...")
         return
 
-    try:
-        with open("dreams.txt", "r") as file:
-            dreams = file.readlines()
+    user_dreams = get_user_dreams()
+    found_count = 0
 
-        found_count = 0
-        for i, dream in enumerate(dreams, 1):
-            try:
-                if keyword in dream.lower():
-                    parts = dream.strip().split("|")
-                    if len(parts) >= 7:
-                        date, title, description, mood, dream_type, intensity, symbols = parts
-                        found_count += 1
-                        print(f"\n--- Match #{found_count} (Dream #{i}) ---")
-                        print(f"Date: {date}")
-                        print(f"Title: {title}")
-                        print(f"Description: {description}")
-                        print(f"Mood: {mood}")
-                        print(f"Type: {dream_type}")
-                        print(f"Intensity: {intensity}/10")
-                        print(f"Symbols: {symbols}")
-                        print("-" * 50)
-            except Exception:
-                continue
+    for i, dream in enumerate(user_dreams, 1):
+        # Search in title, description, mood, type, and symbols
+        dream_text = f"{dream['title']} {dream['description']} {dream['mood']} {dream['dream_type']} {dream['symbols']}".lower()
 
-        if found_count == 0:
-            print(f"\nNo dreams found containing '{keyword}'")
-        else:
-            print(f"\n✓ Found {found_count} dream(s) matching '{keyword}'")
+        if keyword in dream_text:
+            found_count += 1
+            print(f"\n--- Match #{found_count} (Dream #{i}) ---")
+            print(f"Date: {dream['date']}")
+            print(f"Title: {dream['title']}")
+            print(f"Description: {dream['description']}")
+            print(f"Mood: {dream['mood']}")
+            print(f"Type: {dream['dream_type']}")
+            print(f"Intensity: {dream['intensity']}/10")
+            print(f"Symbols: {dream['symbols']}")
+            print("-" * 50)
 
-    except FileNotFoundError:
-        print("No dream entries found yet.")
-    except Exception as e:
-        print(f"Error searching dreams: {e}")
-    finally:
-        input("\nPress Enter to continue...")
+    if found_count == 0:
+        print(f"\nNo dreams found containing '{keyword}'")
+    else:
+        print(f"\n✓ Found {found_count} dream(s) matching '{keyword}'")
+
+    input("\nPress Enter to continue...")
 
 
 def analyze_patterns():
-    """Analyze dream patterns and show statistics"""
+    """Analyze dream patterns and show statistics for current user"""
     clear_screen()
-    print("=== DREAM PATTERN ANALYSIS ===\n")
+    print("=== MY DREAM PATTERN ANALYSIS ===\n")
 
-    try:
-        with open("dreams.txt", "r") as file:
-            dreams = file.readlines()
+    user_dreams = get_user_dreams()
 
-        if not dreams:
-            print("No dreams to analyze yet.")
-            input("\nPress Enter to continue...")
-            return
-
-        # Initialize counters
-        total_dreams = len(dreams)
-        moods = {}
-        types = {}
-        symbols_count = {}
-        intensities = []
-
-        # Analyze each dream
-        for dream in dreams:
-            try:
-                parts = dream.strip().split("|")
-                if len(parts) >= 7:
-                    date, title, description, mood, dream_type, intensity, symbols = parts
-
-                    # Count moods
-                    mood = mood.strip()
-                    moods[mood] = moods.get(mood, 0) + 1
-
-                    # Count types
-                    dream_type = dream_type.strip()
-                    types[dream_type] = types.get(dream_type, 0) + 1
-
-                    # Count symbols
-                    symbol_list = [s.strip() for s in symbols.split(",") if s.strip()]
-                    for symbol in symbol_list:
-                        symbols_count[symbol] = symbols_count.get(symbol, 0) + 1
-
-                    # Collect intensities
-                    try:
-                        intensities.append(int(intensity))
-                    except ValueError:
-                        pass
-            except Exception:
-                continue
-
-        # Display analysis
-        print(f"Total Dreams Recorded: {total_dreams}\n")
-
-        print("--- MOOD DISTRIBUTION ---")
-        for mood, count in sorted(moods.items(), key=lambda x: x[1], reverse=True):
-            print(f"{mood}: {count} time(s)")
-
-        print("\n--- DREAM TYPES ---")
-        for dtype, count in sorted(types.items(), key=lambda x: x[1], reverse=True):
-            print(f"{dtype}: {count} time(s)")
-
-        print("\n--- MOST COMMON SYMBOLS ---")
-        sorted_symbols = sorted(symbols_count.items(), key=lambda x: x[1], reverse=True)[:10]
-        for symbol, count in sorted_symbols:
-            print(f"{symbol}: {count} time(s)")
-
-        if intensities:
-            avg_intensity = sum(intensities) / len(intensities)
-            print(f"\n--- EMOTIONAL INTENSITY ---")
-            print(f"Average Intensity: {avg_intensity:.1f}/10")
-            print(f"Highest Intensity: {max(intensities)}/10")
-            print(f"Lowest Intensity: {min(intensities)}/10")
-
-    except FileNotFoundError:
-        print("No dream entries found yet.")
-    except Exception as e:
-        print(f"Error analyzing patterns: {e}")
-    finally:
+    if not user_dreams:
+        print("No dreams to analyze yet.")
         input("\nPress Enter to continue...")
+        return
+
+    # Initialize counters
+    total_dreams = len(user_dreams)
+    moods = {}
+    types = {}
+    symbols_count = {}
+    intensities = []
+
+    # Analyze each dream
+    for dream in user_dreams:
+        # Count moods
+        mood = dream['mood'].strip()
+        moods[mood] = moods.get(mood, 0) + 1
+
+        # Count types
+        dream_type = dream['dream_type'].strip()
+        types[dream_type] = types.get(dream_type, 0) + 1
+
+        # Count symbols
+        symbol_list = [s.strip() for s in dream['symbols'].split(",") if s.strip()]
+        for symbol in symbol_list:
+            symbols_count[symbol] = symbols_count.get(symbol, 0) + 1
+
+        # Collect intensities
+        try:
+            intensities.append(int(dream['intensity']))
+        except ValueError:
+            pass
+
+    # Display analysis
+    print(f"Total Dreams Recorded: {total_dreams}\n")
+
+    print("--- MOOD DISTRIBUTION ---")
+    for mood, count in sorted(moods.items(), key=lambda x: x[1], reverse=True):
+        print(f"{mood}: {count} time(s)")
+
+    print("\n--- DREAM TYPES ---")
+    for dtype, count in sorted(types.items(), key=lambda x: x[1], reverse=True):
+        print(f"{dtype}: {count} time(s)")
+
+    print("\n--- MOST COMMON SYMBOLS ---")
+    sorted_symbols = sorted(symbols_count.items(), key=lambda x: x[1], reverse=True)[:10]
+    for symbol, count in sorted_symbols:
+        print(f"{symbol}: {count} time(s)")
+
+    if intensities:
+        avg_intensity = sum(intensities) / len(intensities)
+        print(f"\n--- EMOTIONAL INTENSITY ---")
+        print(f"Average Intensity: {avg_intensity:.1f}/10")
+        print(f"Highest Intensity: {max(intensities)}/10")
+        print(f"Lowest Intensity: {min(intensities)}/10")
+
+    input("\nPress Enter to continue...")
 
 
 def get_dream_prompts():
@@ -479,47 +706,63 @@ def add_custom_symbol():
 
 
 def delete_dream():
-    """Delete a dream entry"""
+    """Delete a dream entry for current user"""
     clear_screen()
     print("=== DELETE DREAM ENTRY ===\n")
 
     try:
-        with open("dreams.txt", "r") as file:
-            dreams = file.readlines()
+        user_dreams = get_user_dreams()
 
-        if not dreams:
+        if not user_dreams:
             print("No dreams to delete.")
             input("\nPress Enter to continue...")
             return
 
-        # Display all dreams with numbers
+        # Display all user dreams with numbers
         print("Your dreams:\n")
-        for i, dream in enumerate(dreams, 1):
-            try:
-                parts = dream.strip().split("|")
-                if len(parts) >= 2:
-                    print(f"{i}. {parts[0]} - {parts[1]}")
-            except Exception:
-                print(f"{i}. [Corrupted entry]")
+        for i, dream in enumerate(user_dreams, 1):
+            print(f"{i}. {dream['date']} - {dream['title']}")
 
         # Get dream number to delete
         while True:
             try:
-                choice = input(f"\nEnter dream number to delete (1-{len(dreams)}) or 0 to cancel: ").strip()
+                choice = input(f"\nEnter dream number to delete (1-{len(user_dreams)}) or 0 to cancel: ").strip()
                 choice_num = int(choice)
 
                 if choice_num == 0:
                     print("Deletion cancelled.")
                     break
-                elif 1 <= choice_num <= len(dreams):
+                elif 1 <= choice_num <= len(user_dreams):
                     # Keep asking until valid confirmation
                     while True:
                         confirm = input(
                             f"Are you sure you want to delete dream #{choice_num}? (y/yes or n/no): ").strip().lower()
                         if confirm in ["y", "yes"]:
-                            dreams.pop(choice_num - 1)
+                            # Read all dreams
+                            with open("dreams.txt", "r") as file:
+                                all_dreams = file.readlines()
+
+                            # Find and remove the specific dream
+                            dream_to_delete = user_dreams[choice_num - 1]
+                            new_dreams = []
+
+                            for dream_line in all_dreams:
+                                try:
+                                    parts = dream_line.strip().split("|")
+                                    if len(parts) >= 8:
+                                        username, date, title, description, mood, dream_type, intensity, symbols = parts
+                                        # Only keep if it's not the dream we want to delete
+                                        if not (username == dream_to_delete['username'] and
+                                                date == dream_to_delete['date'] and
+                                                title == dream_to_delete['title']):
+                                            new_dreams.append(dream_line)
+                                except Exception:
+                                    new_dreams.append(dream_line)  # Keep corrupted entries
+
+                            # Write back all dreams except the deleted one
                             with open("dreams.txt", "w") as file:
-                                file.writelines(dreams)
+                                file.writelines(new_dreams)
+
                             print("\n✓ Dream deleted successfully!")
                             break
                         elif confirm in ["n", "no"]:
@@ -529,7 +772,7 @@ def delete_dream():
                             print("Invalid input! Please type 'y'/'yes' to confirm or 'n'/'no' to cancel.")
                     break
                 else:
-                    print(f"Please enter a number between 1 and {len(dreams)}.")
+                    print(f"Please enter a number between 1 and {len(user_dreams)}.")
             except ValueError:
                 print("Invalid input! Please enter a number.")
             except Exception as e:
@@ -546,40 +789,50 @@ def delete_dream():
 
 def main():
     """Main program loop"""
+    global current_user
+
     print("\nWelcome to Dream Journal & Analysis System!")
     input("Press Enter to start...")
 
+    # Authentication loop
     while True:
-        try:
-            choice = main_menu()
+        if not current_user:
+            # Show login/register menu
+            if not auth_menu():
+                return  # User chose to exit
+        else:
+            # User is logged in, show main menu
+            try:
+                choice = main_menu()
 
-            if choice == '1':
-                add_dream_entry()
-            elif choice == '2':
-                view_all_dreams()
-            elif choice == '3':
-                search_dreams()
-            elif choice == '4':
-                analyze_patterns()
-            elif choice == '5':
-                get_dream_prompts()
-            elif choice == '6':
-                view_symbol_dictionary()
-            elif choice == '7':
-                add_custom_symbol()
-            elif choice == '8':
-                delete_dream()
-            elif choice == '9':
-                print("\nThank you for using Dream Journal & Analysis System!")
-                print("Sweet dreams! 🌙")
+                if choice == '1':
+                    add_dream_entry()
+                elif choice == '2':
+                    view_all_dreams()
+                elif choice == '3':
+                    search_dreams()
+                elif choice == '4':
+                    analyze_patterns()
+                elif choice == '5':
+                    get_dream_prompts()
+                elif choice == '6':
+                    view_symbol_dictionary()
+                elif choice == '7':
+                    add_custom_symbol()
+                elif choice == '8':
+                    delete_dream()
+                elif choice == '9':
+                    print("\nThank you for using Dream Journal & Analysis System!")
+                    print("Sweet dreams! 🌙")
+                    current_user = None  # Logout
+                    # Don't break here, go back to auth menu
+
+            except KeyboardInterrupt:
+                print("\n\nProgram interrupted. Exiting...")
                 break
-
-        except KeyboardInterrupt:
-            print("\n\nProgram interrupted. Exiting...")
-            break
-        except Exception as e:
-            print(f"\nUnexpected error: {e}")
-            input("Press Enter to continue...")
+            except Exception as e:
+                print(f"\nUnexpected error: {e}")
+                input("Press Enter to continue...")
 
 
 if __name__ == "__main__":
